@@ -1,0 +1,15 @@
+# setting configuration
+
+originDataDir: "./originFile"
+fileName: "point_cloud_"
+fileType: "ply"
+startNum: 6
+endNum : 6
+outputDataDir: "../Dataset/Data"
+outputLabelDir: "../Dataset/Label"
+outputDataName: "data_"
+outputLabelName: "label_"
+DBSCAN_R: 0.1
+DBSCAN_MIN_SAMPLE: 4
+DOWNSAMPLE_SIZE: 1000
+singleHoleMode: 1
