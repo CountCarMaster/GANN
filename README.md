@@ -4,6 +4,10 @@ so this file is temporarily the
 development log.
 
 NOW DONE:
+- Finished the dataset maker.
 
 TODO:
-- finish the dataset maker
+- Make a dataset.
+- Turn the model to the segmentation mission.
+- Fit the model.
+- Test the model.
