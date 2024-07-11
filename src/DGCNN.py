@@ -1,0 +1,104 @@
+import numpy as np
+import torch
+import torch.nn as nn
+from utils import keep_feature
+
+class DGCNN(nn.Module):
+    def __init__(self, output_channel, k=5):
+        super(DGCNN, self).__init__()
+        self.k = k
+
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.bn3 = nn.BatchNorm2d(64)
+        self.bn4 = nn.BatchNorm2d(64)
+        self.bn5 = nn.BatchNorm1d(1024)
+        self.bn6 = nn.BatchNorm1d(256)
+        self.bn7 = nn.BatchNorm1d(128)
+
+        self.edge_cov1 = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=1, bias=False),
+            self.bn1,
+            nn.ReLU()
+        )
+        self.edge_cov2 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=1, bias=False),
+            self.bn2,
+            nn.ReLU()
+        )
+        self.edge_cov3 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=1, bias=False),
+            self.bn3,
+            nn.ReLU()
+        )
+        self.edge_cov4 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=1, bias=False),
+            self.bn4,
+            nn.ReLU()
+        )
+        self.edge_cov5 = nn.Sequential(
+            nn.Conv1d(64, 1024, kernel_size=1, bias=False),
+            self.bn5,
+            nn.ReLU()
+        )
+        self.edge_cov6 = nn.Sequential(
+            nn.Conv1d(1088, 256, kernel_size=1, bias=False),
+            self.bn6,
+            nn.ReLU()
+        )
+        self.edge_cov7 = nn.Sequential(
+            nn.Conv1d(256, 128, kernel_size=1, bias=False),
+            self.bn7,
+            nn.ReLU()
+        )
+        self.edge_cov8 = nn.Sequential(
+            nn.Conv1d(128, output_channel, kernel_size=1, bias=False),
+            nn.ReLU()
+        )
+
+    def forward(self, x): #[B, C, N]
+        B, C, N = x.shape
+        x = keep_feature(x, self.k) # [B, C, k, N]
+        x = self.edge_cov1(x)
+        x = torch.max(x, dim=2)[0]
+
+        x = keep_feature(x, self.k)
+        x = self.edge_cov2(x)
+        x1 = torch.max(x, dim=2)[0]
+
+        x = keep_feature(x1, self.k)
+        x = self.edge_cov3(x)
+        x = torch.max(x, dim=2)[0]
+
+        x = keep_feature(x, self.k)
+        x = self.edge_cov4(x)
+        x = torch.max(x, dim=2)[0]
+
+        x = self.edge_cov5(x)
+        x = torch.max(x, dim=2)[0]
+        x = x.view(B, 1024, 1).repeat(1, 1, N)
+        x = torch.cat((x1, x), dim=1)
+
+        x = self.edge_cov6(x)
+        x = self.edge_cov7(x)
+        x = self.edge_cov8(x)
+        return x
+
+
+
+
+
+# f = open("data_6.txt", "r")
+# data = np.zeros([2, 1000, 3])
+# k = 0
+# for line in f.readlines():
+#     line = line[:-1]
+#     a, b, c = line.split()
+#     data[0][k][0] = data[1][k][0] = float(a)
+#     data[0][k][1] = data[1][k][1] = float(b)
+#     data[0][k][2] = data[1][k][2] = float(c)
+#
+# aa = DGCNN(128)
+# data = torch.from_numpy(data).transpose(1, 2).float()
+# k = aa(data)
+# print(k.shape)

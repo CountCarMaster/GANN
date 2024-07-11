@@ -5,9 +5,13 @@ development log.
 
 NOW DONE:
 - Finished the dataset maker.
+- Finished the writing of GANN.
+- Added pointnet, pointnet++ and DGCNN model.
 
 TODO:
 - Make a dataset.
-- Turn the model to the segmentation mission.
+- Design the loss function.
+- Design the testing metrics.
+- Add a moderner model(like GDANet).
 - Fit the model.
 - Test the model.

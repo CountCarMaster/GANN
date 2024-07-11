@@ -167,6 +167,9 @@ class InitPointCloud(PointCloud):
                     break
             else:
                 raise KeyError("Please enter Y or n")
+            keys = input("Do you need to recluster the point cloud?(Y/n)")
+            if(keys == 'Y' or keys == "y"):
+                i -= 1
 
     def SaveData(self, pathX, pathY):
         """
