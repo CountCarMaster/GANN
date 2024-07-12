@@ -1,12 +1,13 @@
 # setting configuration
 
+mode: test  # train or test
 originDataDir: "./originFile"
 fileName: "point_cloud_"
 fileType: "ply"
 startNum: 6
 endNum : 6
-outputDataDir: "../Dataset/Data"
-outputLabelDir: "../Dataset/Label"
+outputDataDir: "../Dataset"
+outputLabelDir: "../Dataset"
 outputDataName: "data_"
 outputLabelName: "label_"
 DBSCAN_R: 0.1

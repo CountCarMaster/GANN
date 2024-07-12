@@ -17,14 +17,14 @@ def knn(x, k):
     return idx
 
 
-def get_graph_feature1(x, k, device='cuda:0'):
+def get_graph_feature1(x, k):
     """
     aggressive the neighbor feature
     :param x: input torch tensors, size (B, N, C)
     :param k: k nearest neighbors.
-    :param device: cuda or cpu
     :return:
     """
+    device = x.device
     batch_size = x.size(0)
     num_dims = x.size(1)
     num_points = x.size(2)
@@ -95,8 +95,9 @@ class umbrella_repsurf(nn.Module):
             nn.Conv2d(in_channel, in_channel, 1, bias=True),
         )
 
-    def forward(self, x, device='cuda:0'):
+    def forward(self, x):
         B, N, C = x.shape
+        device = x.device
         x_expand = torch.unsqueeze(x, -2).to(device)
         x_neighbour = get_graph_feature1(x.transpose(1, 2), self.k + 1) - x_expand
         x_neighbour = x_neighbour[:, :, 1:, :]

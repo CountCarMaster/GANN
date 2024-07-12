@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from utils import umbrella_repsurf, new_knn
-
-device = torch.device('cuda')
+from src.utils import umbrella_repsurf, new_knn
 
 class GANN(nn.Module):
     def __init__(self, num_points, k, output_channel):
@@ -150,17 +148,4 @@ class GANN(nn.Module):
 
         return x
 
-# f = open("data_6.txt", "r")
-# data = np.zeros([2, 1000, 3])
-# k = 0
-# for line in f.readlines():
-#     line = line[:-1]
-#     a, b, c = line.split()
-#     data[0][k][0] = data[1][k][0] = float(a)
-#     data[0][k][1] = data[1][k][1] = float(b)
-#     data[0][k][2] = data[1][k][2] = float(c)
-#
-# aa = GANN(1000, 20, 128).to(device)
-# data = torch.from_numpy(data).transpose(1, 2).float().to(device)
-# k = aa(data)
 

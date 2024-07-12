@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from utils import keep_feature
+from src.utils import keep_feature
 
 class DGCNN(nn.Module):
     def __init__(self, output_channel, k=5):
@@ -84,21 +84,3 @@ class DGCNN(nn.Module):
         x = self.edge_cov8(x)
         return x
 
-
-
-
-
-# f = open("data_6.txt", "r")
-# data = np.zeros([2, 1000, 3])
-# k = 0
-# for line in f.readlines():
-#     line = line[:-1]
-#     a, b, c = line.split()
-#     data[0][k][0] = data[1][k][0] = float(a)
-#     data[0][k][1] = data[1][k][1] = float(b)
-#     data[0][k][2] = data[1][k][2] = float(c)
-#
-# aa = DGCNN(128)
-# data = torch.from_numpy(data).transpose(1, 2).float()
-# k = aa(data)
-# print(k.shape)

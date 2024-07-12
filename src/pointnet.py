@@ -79,17 +79,3 @@ class pointnet(nn.Module):
         x = self.edge_cov8(x)
         x = self.edge_cov9(x)
         return x
-
-# f = open("data_6.txt", "r")
-# data = np.zeros([2, 1000, 3])
-# k = 0
-# for line in f.readlines():
-#     line = line[:-1]
-#     a, b, c = line.split()
-#     data[0][k][0] = data[1][k][0] = float(a)
-#     data[0][k][1] = data[1][k][1] = float(b)
-#     data[0][k][2] = data[1][k][2] = float(c)
-# 
-# aa = pointnet(128)
-# k = aa(torch.from_numpy(data).transpose(1, 2).float())
-# print(k.shape)

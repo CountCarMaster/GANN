@@ -1,0 +1,21 @@
+mode: train  # train or test
+device: cuda  # cuda or cpu
+pointNum: 1000  # point number in each file
+inputDataDir: "./Dataset/test/Data"
+inputDataFileName: "data_"
+inputLabelDir: "./Dataset/test/Label"
+inputLabelFileName: "label_"
+inputBeginNum: 6
+inputEndNum: 6
+inputFeatureChannelNum: 3
+numClass: 3
+batchSize: 1
+k: 20  # a parameter of GANN or DGCNN
+model: GANN
+
+# train
+learningRate: 0.0001
+epochs: 1
+val: 1  # 1->yes 0->no
+summaryLogDir: "./summary"
+modelSaveDir: "./weights"

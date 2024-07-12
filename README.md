@@ -7,11 +7,11 @@ NOW DONE:
 - Finished the dataset maker.
 - Finished the writing of GANN.
 - Added pointnet, pointnet++ and DGCNN model.
+- Updated the SOTA model GDANet.
 
 TODO:
 - Make a dataset.
 - Design the loss function.
 - Design the testing metrics.
-- Add a moderner model(like GDANet).
 - Fit the model.
 - Test the model.

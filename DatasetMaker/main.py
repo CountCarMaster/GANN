@@ -18,8 +18,8 @@ if __name__ == '__main__':
     for i in range(config['startNum'], config['endNum'] + 1):
         print("Now dealing with point cloud[%s/%s]" % (i - config['startNum'] + 1, totNum))
         inputPath = os.path.join(config['originDataDir'], config['fileName'] + str(i) + '.' + config['fileType'])
-        outputDataPath = os.path.join(config['outputDataDir'], config['outputDataName'] + str(i) + ".txt")
-        outputLablePath = os.path.join(config['outputLabelDir'], config['outputLabelName'] + str(i) + ".txt")
+        outputDataPath = os.path.join(config['outputDataDir'], config['mode'] , "Data", config['outputDataName'] + str(i) + ".txt")
+        outputLablePath = os.path.join(config['outputLabelDir'], config['mode'], "Label", config['outputLabelName'] + str(i) + ".txt")
 
         pcd = o3d.io.read_point_cloud(inputPath, format=config['fileType'])
         data = np.asarray(pcd.points)
