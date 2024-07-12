@@ -73,7 +73,7 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=config['learningRate'])
     criterion = nn.CrossEntropyLoss().to(device)
 
-    if(config['mode'] == 'train'):
+    if config['mode'] == 'train':
         minLoss = 100000
         maxAcc = 0
         model.train()
@@ -94,7 +94,7 @@ if __name__ == '__main__':
                 torch.save(model.state_dict(), '%s/%s_best_loss.pt' % (config['modelSaveDir'], config['model']))
 
 
-            if(config['val'] == 1):
+            if config['val'] == 1:
                 tot_correct = 0
                 tot_points = 0
                 with torch.no_grad():
@@ -109,13 +109,49 @@ if __name__ == '__main__':
                         tot_points += batch_y.numel()
                 acc = tot_correct / tot_points
                 writer.add_scalar('Acc', acc, epoch)
-                if (acc > maxAcc):
+                if acc > maxAcc:
                     maxAcc = acc
                     torch.save(model.state_dict(), '%s/%s_best_acc.pt' % (config['modelSaveDir'], config['model']))
                 print(f'Epoch [{epoch + 1}/{config["epochs"]}], Loss: {loss.item():.4f}, Acc: {acc:.4f}')
             else:
                 print(f'Epoch [{epoch + 1}/{config["epochs"]}], Loss: {loss.item():.4f}')
         torch.save(model.state_dict(), '%s/%s_last.pt' % (config['modelSaveDir'], config['model']))
+
+    if config['mode'] == 'test':
+
+        model.eval()
+        with torch.no_grad():
+            tot_correct = 0
+            tot_points = 0
+            TN = 0
+            TP = 0
+            FN = 0
+            FP = 0
+            for batch_x, batch_y in dataLoader:
+                batch_x = batch_x.to(device)
+                batch_y = batch_y.to(device)
+                output = model(batch_x).transpose(2, 1)
+                _, predicted = torch.max(output, 1)
+                for i in range(predicted.shape[0]):
+                    if predicted[i] == batch_y[i] and predicted[i] == 2:
+                        TP += 1
+                    elif predicted[i] == batch_y[i] and predicted[i] < 2:
+                        TN += 1
+                    elif predicted[i] != batch_y[i] and predicted[i] == 2:
+                        FP += 1
+                    else:
+                        FN += 1
+                correct = (predicted == batch_y).sum().item()
+                tot_correct += correct
+                tot_points += batch_y.numel()
+            acc = tot_correct / tot_points
+            precision = TP / (TP + FP)
+            recall = TP / (TP + FN)
+            F1 = 2 * (precision * recall) / (precision + recall)
+            print("Acc: %f" % acc)
+            print("Precision: %f" % precision)
+            print("Recall: %f" % recall)
+            print("F1: %f" % F1)
 
 
 
