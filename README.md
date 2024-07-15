@@ -14,3 +14,4 @@ TODO:
 - Make a dataset.
 - Fit the model.
 - Test the model.
+- Try AutoEncoder.

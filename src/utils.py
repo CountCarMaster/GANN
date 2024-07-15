@@ -427,3 +427,61 @@ def keep_feature(x, k):
     neighbors = torch.gather(x_expand, 3, idx_expand)
     neighbors += x_expand
     return neighbors
+
+def CalculateAngle(x, y) :
+    a = torch.matmul(x, y.transpose(-1, -2))
+    a = a.norm(dim=-1, keepdim=False)
+    b = (x * y).sum(dim=-1, keepdim=False)
+    return torch.atan2(a, b)
+
+class FoldingNet(nn.Module):
+    def __init__(self):
+        super(FoldingNet, self).__init__()
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(128)
+        self.bn3 = nn.BatchNorm2d(256)
+        self.bn4 = nn.BatchNorm2d(512)
+        self.bn5 = nn.BatchNorm2d(512)
+        self.mlp1 = nn.Sequential(
+            nn.Conv2d(4, 64, kernel_size=1),
+            self.bn1
+        )
+        self.mlp2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=1),
+            self.bn2
+        )
+        self.mlp3 = nn.Sequential(
+            nn.Conv2d(128, 256, kernel_size=1),
+            self.bn3
+        )
+        self.mlp4 = nn.Sequential(
+            nn.Conv2d(704, 512, kernel_size=1),
+            self.bn4
+        )
+        self.mlp5 = nn.Sequential(
+            nn.Conv2d(512, 512, kernel_size=1),
+            self.bn5
+        )
+
+    def forward(self, x, x_neighbor): # [B, C, k, N]
+        B, C, k, N = x_neighbor.shape
+        x = x.transpose(1, 2)  # [B, N, C]
+        x_neighbor = x_neighbor.transpose(1, 3)  # [B, N, k, C]
+        x = x.unsqueeze(2).repeat(1, 1, k, 1)
+        matrix_d = x - x_neighbor
+        matrix_1 = CalculateAngle(x, matrix_d)
+        matrix_2 = CalculateAngle(x_neighbor, matrix_d)
+        matrix_3 = CalculateAngle(x, x_neighbor)
+        matrix_d = torch.norm(matrix_d, dim=-1)
+        feature = torch.cat((matrix_1.unsqueeze(-1), matrix_2.unsqueeze(-1),
+                             matrix_3.unsqueeze(-1), matrix_d.unsqueeze(-1)), dim=-1)
+        feature = feature.transpose(1, 3)  # [B, C, k, N]
+        x1 = self.mlp1(feature)
+        x2 = self.mlp2(x1)
+        x3 = self.mlp3(x2)
+        x4 = x3.max(dim=-2, keepdim=True)[0].repeat(1, 1, k, 1)
+        x4 = torch.cat((x1, x2, x3, x4), dim=1)
+        x = self.mlp4(x4)
+        x = self.mlp5(x)
+        x = torch.max(x, dim=-2)[0]
+        return x
