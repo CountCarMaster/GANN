@@ -9,9 +9,9 @@ NOW DONE:
 - Added pointnet, pointnet++ and DGCNN model.
 - Updated the SOTA model GDANet.
 - Finished the training and testing code.
+- Added Autoencoder, named new model GANN-FoldNet.
 
 TODO:
 - Make a dataset.
 - Fit the model.
 - Test the model.
-- Try AutoEncoder.
