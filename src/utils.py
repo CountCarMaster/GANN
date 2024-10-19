@@ -3,6 +3,7 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 
+
 def knn(x, k):
     """
     get k nearest neighbors.
@@ -30,6 +31,20 @@ def get_graph_feature1(x, k):
     num_points = x.size(2)
     x = x.view(batch_size, -1, num_points)
     idx = knn(x, k).to(device)
+    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
+    idx = idx + idx_base
+    idx = idx.view(-1)
+    x = x.transpose(2, 1).contiguous().to(device)
+    feature = x.view(batch_size * num_points, -1)[idx, :]
+    feature = feature.view(batch_size, num_points, k, num_dims)
+    return feature
+
+def get_feature(x, idx):
+    device = x.device
+    batch_size = x.size(0)
+    num_dims = x.size(1)
+    num_points = x.size(2)
+    k = idx.size(2)
     idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
     idx = idx + idx_base
     idx = idx.view(-1)
@@ -80,52 +95,6 @@ def resort_points(points, idx):
     return new_points
 
 
-class umbrella_repsurf(nn.Module):
-    def __init__(self, k=9, random_inv=False, in_channel=7):
-        super(umbrella_repsurf, self).__init__()
-        self.k = k
-        self.random_inv = random_inv
-        self.mlps = nn.Sequential(
-            nn.Conv2d(in_channel, in_channel, 1, bias=False),
-            nn.BatchNorm2d(in_channel),
-            nn.ReLU(True),
-            nn.Conv2d(in_channel, in_channel, 1, bias=True),
-            nn.BatchNorm2d(in_channel),
-            nn.ReLU(True),
-            nn.Conv2d(in_channel, in_channel, 1, bias=True),
-        )
-
-    def forward(self, x):
-        B, N, C = x.shape
-        device = x.device
-        x_expand = torch.unsqueeze(x, -2).to(device)
-        x_neighbour = get_graph_feature1(x.transpose(1, 2), self.k + 1) - x_expand
-        x_neighbour = x_neighbour[:, :, 1:, :]
-        x_sphere = xyz2sphere(x_neighbour)
-        phi = x_sphere[..., 2]
-        idx = phi.argsort(dim=-1)
-        pairs = resort_points(x_neighbour, idx).unsqueeze(-2)
-        pairs = torch.cat((pairs, torch.roll(pairs, -1, dims=-3)), dim=-2)
-        centroids = torch.mean(pairs, dim=-2)
-        vector_1 = pairs[..., 0, :].view(B, N, self.k, -1)
-        vector_2 = pairs[..., 1, :].view(B, N, self.k, -1)
-        normals = torch.cross(vector_1, vector_2, dim=-1) + torch.tensor(0.00001)  # [B, N, k, 3]
-        normals = normals / torch.norm(normals, dim=-1, keepdim=True)
-        pos_mask = (normals[..., 0:1, 0] > 0).float() * 2. - 1.
-        normals *= torch.unsqueeze(pos_mask, -1)
-        if self.random_inv:
-            random_mask = torch.randint(0, 2, (x.size(0), 1, 1)).float() * 2. - 1.
-            random_mask = random_mask.to(normals.device)
-            normals = normals * random_mask.unsqueeze(-1)
-        positions = torch.sum(centroids * normals, dim=3) / torch.sqrt(torch.tensor(3).to(device))
-        feature = torch.cat((centroids, normals, positions.unsqueeze(-1)), dim=-1)
-        feature = torch.permute(feature, (0, 3, 1, 2))
-        feature = self.mlps(feature.float()).permute(0, 2, 3, 1)
-        feature = torch.max(feature, 2)[0]
-        feature = torch.cat([x.to(device), feature], dim=-1)
-        return feature
-
-
 class AddNorm(nn.Module):
     def __init__(self, dim):
         super(AddNorm, self).__init__()
@@ -136,14 +105,52 @@ class AddNorm(nn.Module):
     def forward(self, input, x):
         input = self.dropout(input)
         return self.norm(input + x)
+
+# class new_knn(nn.Module):
+#     def __init__(self, in_channel, qkv_channel, k_tmp=50, k=20):
+#         super(new_knn, self).__init__()
+#         self.k_tmp = k_tmp
+#         self.k = k
+#         self.qLinear = nn.Linear(in_channel, qkv_channel)
+#         self.kLinear = nn.Linear(in_channel, qkv_channel)
+#         # self.vLinear = nn.Linear(self.N, self.N)
+#         # self.fc = nn.Linear(in_channel, 1)
+#         # self.dense = nn.Linear(self.N, self.N)
+#         # self.in_channel = in_channel
+#         # self.addnorm1 = AddNorm(self.N)
+#         # self.addnorm2 = AddNorm(self.N)
+#
+#     def forward(self, x):
+#         B, C, N = x.shape  # [B, C, N]
+#
+#         x_transposed = x.transpose(1, 2)  # [B, N, C]
+#
+#         x_with_neighbour = get_graph_feature1(x, self.k_tmp)  # [B, N, k, C]
+#         x_copied = x_with_neighbour
+#         # x_unsqueezed = x.transpose(1, 2).unsqueeze(-2)
+#         # x_with_neighbour -= x_unsqueezed
+#         # x_with_neighbour = x_with_neighbour.permute(0, 2, 3, 1)  # [B, k, C, N]
+#         q = self.qLinear(x_transposed)  # [B, N, C']
+#         k = self.kLinear(x_with_neighbour)  # [B, N, k, C']
+#         scaled_attention_logits = torch.matmul(k, q.unsqueeze(-1))
+#         scaled_attention_logits /= torch.sqrt(torch.tensor(self.k_tmp, dtype=torch.float32))
+#         attention_weights = torch.nn.functional.softmax(scaled_attention_logits, dim=-1)
+#         attention_weights = attention_weights.view(B, N, -1)
+#         _, indices = torch.sort(attention_weights, dim=-1)
+#         indices = indices[:, :, :self.k]  # [B, N, k]
+#         _ = _[:, :, :self.k]
+#         ans = torch.gather(x_copied, dim=-2, index=indices.unsqueeze(-1).expand(-1, -1, -1, C)) # * _.unsqueeze(-1)
+#         return ans.permute(0, 3, 2, 1)   # [B, C, k, N]
+
+
 class new_knn(nn.Module):
-    def __init__(self, num_points, in_channel, k_tmp=50, k=20):
+    def __init__(self, num_points, in_channel, qkv_channel, k_tmp=50, k=20):
         super(new_knn, self).__init__()
         self.k_tmp = k_tmp
         self.k = k
         self.N = num_points
-        self.qLinear = nn.Linear(self.N, self.N)
-        self.kLinear = nn.Linear(self.N, self.N)
+        self.qLinear = nn.Linear(in_channel, qkv_channel)
+        self.kLinear = nn.Linear(in_channel, qkv_channel)
         self.vLinear = nn.Linear(self.N, self.N)
         self.fc = nn.Linear(in_channel, 1)
         self.dense = nn.Linear(self.N, self.N)
@@ -153,14 +160,16 @@ class new_knn(nn.Module):
 
     def forward(self, x):
         B, C, N = x.shape  # [B, C, N]
-        self.N = N
-        x_with_neighbour = get_graph_feature1(x, self.k_tmp)
+
+        x_transposed = x.transpose(1, 2)  # [B, N, C]
+
+        x_with_neighbour = get_graph_feature1(x, self.k_tmp)  # [B, N, k, C]
         x_copied = x_with_neighbour
-        x_unsqueezed = x.transpose(1, 2).unsqueeze(-2)
-        x_with_neighbour -= x_unsqueezed
-        x_with_neighbour = x_with_neighbour.permute(0, 2, 3, 1)  # [B, k, C, N]
-        q = self.qLinear(x_with_neighbour.view(B, -1, N).contiguous())
-        k = self.kLinear(x_with_neighbour.view(B, -1, N).contiguous())
+        # x_unsqueezed = x.transpose(1, 2).unsqueeze(-2)
+        # x_with_neighbour -= x_unsqueezed
+        # x_with_neighbour = x_with_neighbour.permute(0, 2, 3, 1)  # [B, k, C, N]
+        q = self.qLinear(x_transposed)  # [B, N, C']
+        k = self.kLinear(x_with_neighbour)  # [B, N, k, C']
         v = self.vLinear(x_with_neighbour.view(B, -1, N).contiguous())
         scaled_attention_logits = torch.matmul(q, k.transpose(-2, -1).contiguous())
         scaled_attention_logits /= torch.sqrt(torch.tensor(self.N, dtype=torch.float32))
@@ -434,54 +443,8 @@ def CalculateAngle(x, y) :
     b = (x * y).sum(dim=-1, keepdim=False)
     return torch.atan2(a, b)
 
-class FoldingNet(nn.Module):
-    def __init__(self):
-        super(FoldingNet, self).__init__()
-        self.bn1 = nn.BatchNorm2d(64)
-        self.bn2 = nn.BatchNorm2d(128)
-        self.bn3 = nn.BatchNorm2d(256)
-        self.bn4 = nn.BatchNorm2d(512)
-        self.bn5 = nn.BatchNorm2d(512)
-        self.mlp1 = nn.Sequential(
-            nn.Conv2d(4, 64, kernel_size=1),
-            self.bn1
-        )
-        self.mlp2 = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=1),
-            self.bn2
-        )
-        self.mlp3 = nn.Sequential(
-            nn.Conv2d(128, 256, kernel_size=1),
-            self.bn3
-        )
-        self.mlp4 = nn.Sequential(
-            nn.Conv2d(704, 512, kernel_size=1),
-            self.bn4
-        )
-        self.mlp5 = nn.Sequential(
-            nn.Conv2d(512, 512, kernel_size=1),
-            self.bn5
-        )
+# knnn = new_knn(64, 32)
+# data = torch.rand(20, 64, 1000)
+# a = knnn(data)
 
-    def forward(self, x, x_neighbor): # [B, C, k, N]
-        B, C, k, N = x_neighbor.shape
-        x = x.transpose(1, 2)  # [B, N, C]
-        x_neighbor = x_neighbor.transpose(1, 3)  # [B, N, k, C]
-        x = x.unsqueeze(2).repeat(1, 1, k, 1)
-        matrix_d = x - x_neighbor
-        matrix_1 = CalculateAngle(x, matrix_d)
-        matrix_2 = CalculateAngle(x_neighbor, matrix_d)
-        matrix_3 = CalculateAngle(x, x_neighbor)
-        matrix_d = torch.norm(matrix_d, dim=-1)
-        feature = torch.cat((matrix_1.unsqueeze(-1), matrix_2.unsqueeze(-1),
-                             matrix_3.unsqueeze(-1), matrix_d.unsqueeze(-1)), dim=-1)
-        feature = feature.transpose(1, 3)  # [B, C, k, N]
-        x1 = self.mlp1(feature)
-        x2 = self.mlp2(x1)
-        x3 = self.mlp3(x2)
-        x4 = x3.max(dim=-2, keepdim=True)[0].repeat(1, 1, k, 1)
-        x4 = torch.cat((x1, x2, x3, x4), dim=1)
-        x = self.mlp4(x4)
-        x = self.mlp5(x)
-        x = torch.max(x, dim=-2)[0]
-        return x
+

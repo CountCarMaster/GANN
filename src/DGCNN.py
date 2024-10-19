@@ -1,11 +1,23 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from src.utils import keep_feature
+from src.utils import keep_feature, get_feature
 
-class DGCNN(nn.Module):
-    def __init__(self, output_channel, k=5):
-        super(DGCNN, self).__init__()
+k_num = 0
+def printer(data: torch.Tensor):
+    global k_num
+    for i in range(data.shape[0]):
+        file = open("%s.txt" % k_num, "w")
+        for j in range(data.shape[1]):
+            for k in range(data.shape[2]):
+                print(data[i, j, k], file=file, end=" ")
+            print('', file=file)
+
+class DGCNN_cls(nn.Module):
+
+
+    def __init__(self, input_channel, output_channel, k=5):
+        super(DGCNN_cls, self).__init__()
         self.k = k
 
         self.bn1 = nn.BatchNorm2d(64)
@@ -13,11 +25,13 @@ class DGCNN(nn.Module):
         self.bn3 = nn.BatchNorm2d(64)
         self.bn4 = nn.BatchNorm2d(64)
         self.bn5 = nn.BatchNorm1d(1024)
-        self.bn6 = nn.BatchNorm1d(256)
+        self.bn6 = nn.BatchNorm1d(512)
         self.bn7 = nn.BatchNorm1d(128)
+        self.bn8 = nn.BatchNorm1d(512)
+        self.bn9 = nn.BatchNorm1d(128)
 
         self.edge_cov1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=1, bias=False),
+            nn.Conv2d(input_channel, 64, kernel_size=1, bias=False),
             self.bn1,
             nn.ReLU()
         )
@@ -42,12 +56,92 @@ class DGCNN(nn.Module):
             nn.ReLU()
         )
         self.edge_cov6 = nn.Sequential(
-            nn.Conv1d(1088, 256, kernel_size=1, bias=False),
+            nn.Linear(1024, 512),
             self.bn6,
             nn.ReLU()
         )
         self.edge_cov7 = nn.Sequential(
-            nn.Conv1d(256, 128, kernel_size=1, bias=False),
+            nn.Linear(512, 128),
+            self.bn7,
+            nn.ReLU()
+        )
+        self.edge_cov8 = nn.Sequential(
+            nn.Linear(128, output_channel),
+            nn.ReLU()
+        )
+
+    def forward(self, x): #[B, C, N]
+        B, C, N = x.shape
+        x = keep_feature(x, self.k) # [B, C, k, N]
+        x = self.edge_cov1(x)
+        x = torch.max(x, dim=2)[0]
+
+
+        x = keep_feature(x, self.k)
+        x = self.edge_cov2(x)
+        x1 = torch.max(x, dim=2)[0]
+
+        x = keep_feature(x1, self.k)
+        x = self.edge_cov3(x)
+        x = torch.max(x, dim=2)[0]
+
+        x = keep_feature(x, self.k)
+        x = self.edge_cov4(x)
+        x = torch.max(x, dim=2)[0]
+
+        x = self.edge_cov5(x)
+        x = torch.max(x, dim=2)[0]
+
+        x = self.edge_cov6(x)
+        x = self.edge_cov7(x)
+        x = self.edge_cov8(x)
+        return x
+
+class DGCNN_seg(nn.Module):
+    def __init__(self, input_channel, output_channel, k=5):
+        super(DGCNN_seg, self).__init__()
+        self.k = k
+
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.bn3 = nn.BatchNorm2d(64)
+        self.bn4 = nn.BatchNorm2d(64)
+        self.bn5 = nn.BatchNorm1d(1024)
+        self.bn6 = nn.BatchNorm1d(512)
+        self.bn7 = nn.BatchNorm1d(128)
+
+        self.edge_cov1 = nn.Sequential(
+            nn.Conv2d(input_channel, 64, kernel_size=1, bias=False),
+            self.bn1,
+            nn.ReLU()
+        )
+        self.edge_cov2 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=1, bias=False),
+            self.bn2,
+            nn.ReLU()
+        )
+        self.edge_cov3 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=1, bias=False),
+            self.bn3,
+            nn.ReLU()
+        )
+        self.edge_cov4 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=1, bias=False),
+            self.bn4,
+            nn.ReLU()
+        )
+        self.edge_cov5 = nn.Sequential(
+            nn.Conv1d(64, 1024, kernel_size=1, bias=False),
+            self.bn5,
+            nn.ReLU()
+        )
+        self.edge_cov6 = nn.Sequential(
+            nn.Conv1d(1088, 512, kernel_size=1, bias=False),
+            self.bn6,
+            nn.ReLU()
+        )
+        self.edge_cov7 = nn.Sequential(
+            nn.Conv1d(512, 128, kernel_size=1, bias=False),
             self.bn7,
             nn.ReLU()
         )
@@ -76,11 +170,10 @@ class DGCNN(nn.Module):
 
         x = self.edge_cov5(x)
         x = torch.max(x, dim=2)[0]
-        x = x.view(B, 1024, 1).repeat(1, 1, N)
-        x = torch.cat((x1, x), dim=1)
+
+        x = torch.cat([x1, x.unsqueeze(-1).repeat(1, 1, N)], dim=1)
 
         x = self.edge_cov6(x)
         x = self.edge_cov7(x)
         x = self.edge_cov8(x)
         return x
-
