@@ -14,85 +14,75 @@ class Dataset:
         self.batch_size = batch_size
 
 class ModelNet40(Dataset):
-    def __init__(self, folderPath: str, batch_size, point_num=1000, mode='all', channel_num=3):
+    def __init__(self, batch_size, mode='all', channel_num=3):
         super(ModelNet40, self).__init__(channel_num, batch_size)
         self.categoriesNum = 40
-        self.point_num = point_num
+        self.point_num = 1024
         self.mode = mode
-        self.folderPath = folderPath
-
-    def Number(self, num):
-        ans = ''
-        if int(num / 1000) == 0:
-            ans += '0'
-        if int(num / 100) == 0:
-            ans += '0'
-        if int(num / 10) == 0:
-            ans += '0'
-        ans += str(num)
-        return ans
+        self.name_list = ['airplane', 'bathtub', 'bed', 'bench', 'bookshelf', 'bottle', 'bowl', 'car',
+                     'chair', 'cone', 'cup', 'curtain', 'desk', 'door', 'dresser', 'flower_pot',
+                     'glass_box', 'guitar', 'keyboard', 'lamp', 'laptop', 'mantel', 'monitor',
+                     'night_stand', 'person', 'piano', 'plant', 'radio', 'range_hood', 'sink', 'sofa',
+                     'stairs', 'stool', 'table', 'tent', 'toilet', 'tv_stand', 'vase', 'wardrobe', 'xbox']
+        self.train_num_list = [626, 106, 515, 173, 572, 335, 64, 197, 889, 167, 79, 138, 200, 109, 200, 149,
+                          171, 155, 145, 124, 149, 284, 465, 200, 88, 231, 240, 104, 115, 128, 680,
+                          124, 90, 392, 163, 344, 267, 475, 87, 103]
+        self.test_num_test = [100, 50, 100, 20, 100, 100, 20, 100, 100, 20, 20, 20, 86, 20, 86, 20,
+                         100, 100, 20, 20, 20, 100, 100, 86, 20, 100, 100, 20, 100, 20, 100,
+                         20, 20, 100, 20, 100, 100, 100, 20, 20]
 
     def Load(self):
-        datasetFile = open(self.folderPath + '/ModelNet40.txt', 'r')
-        k = 0
-        numbers = np.zeros([self.categoriesNum, 2], dtype=int)
-        names = np.zeros([self.categoriesNum], dtype='U25')
-        for line in datasetFile.readlines():
-            line = line[:-1]
-            name, trainNum, testNum = line.split()
-            names[k] = name
-            numbers[k][0] = int(trainNum)
-            numbers[k][1] = int(testNum)
-            k += 1
-        num = np.sum(numbers, axis=0)
-        x_train = np.zeros([num[0], self.point_num, self.channel_num])
-        y_train = np.zeros(num[0])
-        x_test = np.zeros([num[1], self.point_num, self.channel_num])
-        y_test = np.zeros(num[1])
+        k_train = 0
+        k_test = 0
+        x_train = np.zeros([9843, self.point_num, self.channel_num])
+        y_train = np.zeros(9843)
+        x_test = np.zeros([2468, self.point_num, self.channel_num])
+        y_test = np.zeros(2468)
         if self.mode == 'all':
-            totTest = 0
-            totTrain = 0
-            for i in range(self.categoriesNum):
-                for j in range(numbers[i][0]):
-                    fileName = self.folderPath + '/ModelNet40/%s/train/%s_%s.txt' % (names[i], names[i], self.Number(j + 1))
-                    tmp = np.loadtxt(fileName)
-                    x_train[totTrain, :, :] = tmp
-                    y_train[totTrain] = i
-                    totTrain += 1
-                for j in range(numbers[i][1]):
-                    fileName = self.folderPath + '/ModelNet40/%s/test/%s_%s.txt' % (names[i], names[i], self.Number(numbers[i][0] + j + 1))
-                    tmp = np.loadtxt(fileName)
-                    x_test[totTest, :, :] = tmp
-                    y_test[totTest] = i
-                    totTest += 1
+            for i in range(40):
+                name = self.name_list[i]
+                for j in range(self.train_num_list[i]):
+                    number_string = str(j + 1).zfill(4)
+                    path = './dataset/ModelNet40/' + name + '/train/' + name + '_' + number_string + '.txt'
+                    data_tmp = np.loadtxt(path)
+                    x_train[k_train] = data_tmp
+                    y_train[k_train] = i
+                    k_train += 1
+                for j in range(self.train_num_list[i], self.train_num_list[i] + self.test_num_test[i]):
+                    number_string = str(j + 1).zfill(4)
+                    path = './dataset/ModelNet40/' + name + '/test/' + name + '_' + number_string + '.txt'
+                    data_tmp = np.loadtxt(path)
+                    x_test[k_test] = data_tmp
+                    y_test[k_test] = i
+                    k_test += 1
             datasetTrain = TensorDataset(torch.tensor(x_train), torch.tensor(y_train))
             dataLoaderTrain = DataLoader(datasetTrain, batch_size=self.batch_size, shuffle=True, drop_last=True)
             datasetTest = TensorDataset(torch.tensor(x_test), torch.tensor(y_test))
             dataLoaderTest = DataLoader(datasetTest, batch_size=self.batch_size, shuffle=True, drop_last=True)
             return dataLoaderTrain, dataLoaderTest
         elif self.mode == 'train':
-            totTrain = 0
-            for i in range(self.categoriesNum):
-                for j in range(numbers[i][0]):
-                    fileName = self.folderPath + '/ModelNet40/%s/train/%s_%s.txt' % (
-                    names[i], names[i], self.Number(j + 1))
-                    tmp = np.loadtxt(fileName)
-                    x_train[totTrain, :, :] = tmp
-                    y_train[totTrain] = i
-                    totTrain += 1
+            for i in range(40):
+                name = self.name_list[i]
+                for j in range(self.train_num_list[i]):
+                    number_string = str(j + 1).zfill(4)
+                    path = './dataset/ModelNet40/' + name + '/train/' + name + '_' + number_string + '.txt'
+                    data_tmp = np.loadtxt(path)
+                    x_train[k_train] = data_tmp
+                    y_train[k_train] = i
+                    k_train += 1
             datasetTrain = TensorDataset(torch.tensor(x_train), torch.tensor(y_train))
             dataLoaderTrain = DataLoader(datasetTrain, batch_size=self.batch_size, shuffle=True, drop_last=True)
             return dataLoaderTrain
         elif self.mode == 'test':
-            totTest = 0
-            for i in range(self.categoriesNum):
-                for j in range(numbers[i][1]):
-                    fileName = self.folderPath + '/ModelNet40/%s/test/%s_%s.txt' % (
-                    names[i], names[i], self.Number(numbers[i][0] + j + 1))
-                    tmp = np.loadtxt(fileName)
-                    x_test[totTest, :, :] = tmp
-                    y_test[totTest] = i
-                    totTest += 1
+            for i in range(40):
+                name = self.name_list[i]
+                for j in range(self.train_num_list[i], self.train_num_list[i] + self.test_num_test[i]):
+                    number_string = str(j + 1).zfill(4)
+                    path = './dataset/ModelNet40/' + name + '/test/' + name + '_' + number_string + '.txt'
+                    data_tmp = np.loadtxt(path)
+                    x_test[k_test] = data_tmp
+                    y_test[k_test] = i
+                    k_test += 1
             datasetTest = TensorDataset(torch.tensor(x_test), torch.tensor(y_test))
             dataLoaderTest = DataLoader(datasetTest, batch_size=self.batch_size, shuffle=True, drop_last=True)
             return dataLoaderTest

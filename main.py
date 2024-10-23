@@ -20,12 +20,12 @@ def visualizer(data: np.array):
     pcd.points = o3d.utility.Vector3dVector(data)
     o3d.visualization.draw_geometries([pcd])
 
-def datasetChooser(mission: str, datasetDir: str, batchSize: int, mode: str):
+def datasetChooser(mission: str, batchSize: int, mode: str):
     if mission == 'classification':
-        dataset = ModelNet40(folderPath=datasetDir, batch_size=batchSize, mode=mode)
+        dataset = ModelNet40(batch_size=batchSize, mode=mode)
         return dataset.Load()
     elif mission == 'part segmentation':
-        dataset = ShapeNet(folderPath=datasetDir, batch_size=batchSize, mode=mode)
+        dataset = ShapeNet(batch_size=batchSize, mode=mode)
         return dataset.Load()
     elif mission == 'scene segmentation':
         dataset = S3DISFinal(batch_size=batchSize, mode=mode)
@@ -35,7 +35,7 @@ def datasetChooser(mission: str, datasetDir: str, batchSize: int, mode: str):
                        'classification, part segmentation, scene segmentation.')
 
 
-def modelChooser(modelName: str, mission: str, device: torch.device, k=5, kmax=20):
+def modelChooser(modelName: str, mission: str, device: torch.device, k=40, kmax=20):
     if modelName == 'PointNet':
         if mission == 'classification':
             return pointnet_cls(input_channel=3, output_channel=40).to(device)
@@ -66,16 +66,16 @@ def modelChooser(modelName: str, mission: str, device: torch.device, k=5, kmax=2
         else:
             raise KeyError('Unknown mission name. Please choose the mission in '
                            'classification, part segmentation, scene segmentation.')
-    elif modelName == 'GANN':
-        if mission == 'classification':
-            return GANN_cls(input_channel=3, output_channel=40, k=k, kmax=kmax).to(device)
-        elif mission == 'part segmentation':
-            return GANN_seg(input_channel=3, output_channel=6, k=k, kmax=kmax).to(device)
-        elif mission == 'scene segmentation':
-            return GANN_seg(input_channel=9, output_channel=13, k=k, kmax=kmax).to(device)
-        else:
-            raise KeyError('Unknown mission name. Please choose the mission in '
-                           'classification, part segmentation, scene segmentation.')
+    # elif modelName == 'GANN':
+    #     if mission == 'classification':
+    #         return GANN_cls(input_channel=3, output_channel=40, k=k, kmax=kmax).to(device)
+    #     elif mission == 'part segmentation':
+    #         return GANN_seg(input_channel=3, output_channel=6, k=k, kmax=kmax).to(device)
+    #     elif mission == 'scene segmentation':
+    #         return GANN_seg(input_channel=9, output_channel=13, k=k, kmax=kmax).to(device)
+    #     else:
+    #         raise KeyError('Unknown mission name. Please choose the mission in '
+    #                        'classification, part segmentation, scene segmentation.')
     else:
         raise KeyError('Unknown model name. Please choose the model in '
                        'pointnet, pointnet2, DGCNN and GANN')
@@ -103,7 +103,7 @@ if __name__ == '__main__':
         config = yaml.load(f.read(), Loader=yaml.FullLoader)
 
     device = torch.device(config['device'])
-    dataLoader = datasetChooser(config['mission'], config['datasetRootDir'], config['batchSize'], config['mode'])  # [B, N, C]
+    dataLoader = datasetChooser(config['mission'], config['batchSize'], config['mode'])  # [B, N, C]
     model = modelChooser(config['model'], config['mission'], device, config['k'], config['kmax'])
 
 
@@ -123,11 +123,16 @@ if __name__ == '__main__':
         maxAcc = -1
         lossArray = []
         for epoch in range(config['epochs']):
+            kk = 0
             for x, y in dataLoader:
                 x = x.to(device).transpose(1, 2)
                 x = x.float()
                 y = y.to(device)
-                output = model(x)
+                if kk == 0 and epoch % 20 == 0:
+                    output = model(x, save=True)
+                    kk += 1
+                else :
+                    output = model(x)
                 loss = criterion(output.type(torch.float32), y.long())
                 optimizer.zero_grad()
                 loss.backward()

@@ -6,16 +6,12 @@ from src.utils import keep_feature, get_feature
 k_num = 0
 def printer(data: torch.Tensor):
     global k_num
-    for i in range(data.shape[0]):
-        file = open("%s.txt" % k_num, "w")
-        for j in range(data.shape[1]):
-            for k in range(data.shape[2]):
-                print(data[i, j, k], file=file, end=" ")
-            print('', file=file)
+    data = data.detach().numpy()
+    np.savetxt('./tmp/%s.txt' % k_num, data)
+    k_num += 1
+    print(k_num)
 
 class DGCNN_cls(nn.Module):
-
-
     def __init__(self, input_channel, output_channel, k=5):
         super(DGCNN_cls, self).__init__()
         self.k = k
@@ -70,24 +66,50 @@ class DGCNN_cls(nn.Module):
             nn.ReLU()
         )
 
-    def forward(self, x): #[B, C, N]
+    def forward(self, x, save=False): #[B, C, N]
         B, C, N = x.shape
         x = keep_feature(x, self.k) # [B, C, k, N]
         x = self.edge_cov1(x)
         x = torch.max(x, dim=2)[0]
 
+        if save == False:
+            x = keep_feature(x, self.k)
+            x = self.edge_cov2(x)
+            x1 = torch.max(x, dim=2)[0]
+        else :
+            xx = x.detach()
+            x = keep_feature(x, self.k)
+            for i in range(x.shape[0]):
+                for j in range(x.shape[-1]):
+                    printer(x.permute(0, 3, 2, 1)[i][j] - xx.transpose(1, 2)[i][j].unsqueeze(0))
+            x = self.edge_cov2(x)
+            x1 = torch.max(x, dim=2)[0]
 
-        x = keep_feature(x, self.k)
-        x = self.edge_cov2(x)
-        x1 = torch.max(x, dim=2)[0]
+        if save == False:
+            x = keep_feature(x1, self.k)
+            x = self.edge_cov3(x)
+            x = torch.max(x, dim=2)[0]
+        else :
+            xx = x1.detach()
+            x = keep_feature(x1, self.k)
+            for i in range(x.shape[0]):
+                for j in range(x.shape[-1]):
+                    printer(x.permute(0, 3, 2, 1)[i][j] - xx.transpose(1, 2)[i][j].unsqueeze(0))
+            x = self.edge_cov3(x)
+            x = torch.max(x, dim=2)[0]
 
-        x = keep_feature(x1, self.k)
-        x = self.edge_cov3(x)
-        x = torch.max(x, dim=2)[0]
-
-        x = keep_feature(x, self.k)
-        x = self.edge_cov4(x)
-        x = torch.max(x, dim=2)[0]
+        if save == False:
+            x = keep_feature(x, self.k)
+            x = self.edge_cov4(x)
+            x = torch.max(x, dim=2)[0]
+        else:
+            xx = xx.detach()
+            x = keep_feature(x, self.k)
+            for i in range(x.shape[0]):
+                for j in range(x.shape[-1]):
+                    printer(x.permute(0, 3, 2, 1)[i][j] - xx.transpose(1, 2)[i][j].unsqueeze(0))
+            x = self.edge_cov4(x)
+            x = torch.max(x, dim=2)[0]
 
         x = self.edge_cov5(x)
         x = torch.max(x, dim=2)[0]
