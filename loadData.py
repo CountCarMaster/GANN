@@ -37,11 +37,12 @@ train_num_list = [626, 106, 515, 173, 572, 335, 64, 197, 889, 167, 79, 138, 200,
 test_num_test = [100, 50, 100, 20, 100, 100, 20, 100, 100, 20, 20, 20, 86, 20, 86, 20,
                   100, 100, 20, 20, 20, 100, 100, 86, 20, 100, 100, 20, 100, 20, 100,
                   20, 20, 100, 20, 100, 100, 100, 20, 20]
+os.system('mkdir dataset')
 os.system('wget -P ./dataset http://modelnet.cs.princeton.edu/ModelNet40.zip')
 os.system('unzip ./dataset/ModelNet40.zip -d ./dataset')
 os.system('mv dataset/ModelNet40 dataset/ModelNet')
 os.system('mkdir dataset/ModelNet40')
-for i in tqdm(range(27, 40)):
+for i in tqdm(range(40)):
     name = name_list[i]
     os.system('mkdir dataset/ModelNet40/' + name)
     os.system('mkdir dataset/ModelNet40/' + name + '/train')

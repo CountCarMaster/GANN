@@ -1,7 +1,7 @@
 model: DGCNN
 mission: classification  # classification / part segmentation / scene segmentation
 mode: train  # train or test
-device: cpu  # cuda or cpu
+device: cuda  # cuda or cpu
 pointNum: 1024  # cls: 1000 / part_seg: 2048 / scene segmentation: 4096
 numClass: 40
 batchSize: 2

@@ -2,7 +2,7 @@ import argparse
 import yaml
 from src.pointnet import pointnet_cls, pointnet_seg
 from src.pointnet2 import pointnet2_cls, pointnet2_seg
-from src.DGCNN import DGCNN_cls, DGCNN_seg
+from src.DGCNN_with_kmeans import DGCNN_cls, DGCNN_seg
 from src.ErrorClass import KeyError
 from src.DatasetMaker import ModelNet40, ShapeNet, S3DISFinal
 import numpy as np
@@ -123,16 +123,11 @@ if __name__ == '__main__':
         maxAcc = -1
         lossArray = []
         for epoch in range(config['epochs']):
-            kk = 0
             for x, y in dataLoader:
                 x = x.to(device).transpose(1, 2)
                 x = x.float()
                 y = y.to(device)
-                if kk == 0 and epoch % 20 == 0:
-                    output = model(x, save=True)
-                    kk += 1
-                else :
-                    output = model(x)
+                output = model(x)
                 loss = criterion(output.type(torch.float32), y.long())
                 optimizer.zero_grad()
                 loss.backward()
