@@ -17,6 +17,47 @@ def knn(x, k):
     idx = distance.topk(k=k, dim=-1)[1]
     return idx
 
+def knn_with_weight(x, k):
+    xsqu = torch.sum(x ** 2, dim=1, keepdim=True)
+    xx = torch.matmul(x.transpose(2, 1), x)
+    distance = -xsqu - xsqu.transpose(2, 1) + 2 * xx
+    idx = distance.topk(k=k, dim=-1)[1]
+    dist = distance.topk(k=k, dim=-1)[0]  # [B, N, k]
+    dist_rolled = dist.roll(shifts=1, dims=-1)
+    weight = torch.abs(dist - dist_rolled)
+    min_val = weight.min(dim=-1, keepdim=True).values
+    max_val = weight.max(dim=-1, keepdim=True).values
+    weight = (weight - min_val) / (max_val - min_val + 1e-6)
+    return idx, weight  # [B, N, k]
+
+
+def keep_feature2(x, k):
+    B, C, N = x.shape
+    idx, weight = knn_with_weight(x, k)[0].transpose(1, 2), knn_with_weight(x, k)[1].transpose(1, 2)
+    # [B, k, N]
+    x_expand = x.unsqueeze(2).expand(B, C, k, N)
+    idx_expand = idx.unsqueeze(1).expand(B, C, k, N)
+    neighbors = torch.gather(x_expand, 3, idx_expand)  # [B, C, k, N]
+    weight = weight.unsqueeze(1).expand(B, C, k, N)
+    neighbors *= weight
+    neighbors += x_expand
+    return neighbors
+
+def keep_feature3(x, k):
+    B, C, N = x.shape
+    idx = knn_with_weight(x, k)[0].transpose(1, 2)
+    # [B, k, N]
+    x_expand = x.unsqueeze(2).expand(B, C, k, N)
+    idx_expand = idx.unsqueeze(1).expand(B, C, k, N)
+    neighbors = torch.gather(x_expand, 3, idx_expand)  # [B, C, k, N]
+    neighbors_tmp = neighbors.roll(shifts=1, dims=-2)
+    weight = torch.abs(neighbors - neighbors_tmp).sum(dim=1)
+    min_val = weight.min(dim=1, keepdim=True).values
+    max_val = weight.max(dim=1, keepdim=True).values
+    weight = (weight - min_val) / (max_val - min_val + 1e-6)
+    neighbors *= weight.unsqueeze(1).expand(B, C, k, N)
+    neighbors += x_expand
+    return neighbors
 
 def get_graph_feature1(x, k):
     """
