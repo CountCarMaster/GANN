@@ -17,6 +17,19 @@ def knn(x, k):
     idx = distance.topk(k=k, dim=-1)[1]
     return idx
 
+def knn_extension(x, k):
+    """
+    get k nearest neighbors.
+    :param x: input torch tensors, size (B, N, C)
+    :param k: neighbor size.
+    :return:
+    """
+    xsqu = torch.sum(x ** 2, dim=1, keepdim=True)
+    xx = torch.matmul(x.transpose(2, 1), x)
+    distance = -xsqu - xsqu.transpose(2, 1) + 2 * xx
+    idx = distance.topk(k=k*2, dim=-1)[1]
+    return idx[:, ::2]
+
 def knn_with_weight(x, k):
     xsqu = torch.sum(x ** 2, dim=1, keepdim=True)
     xx = torch.matmul(x.transpose(2, 1), x)
@@ -29,19 +42,6 @@ def knn_with_weight(x, k):
     max_val = weight.max(dim=-1, keepdim=True).values
     weight = (weight - min_val) / (max_val - min_val + 1e-6)
     return idx, weight  # [B, N, k]
-
-
-def keep_feature2(x, k):
-    B, C, N = x.shape
-    idx, weight = knn_with_weight(x, k)[0].transpose(1, 2), knn_with_weight(x, k)[1].transpose(1, 2)
-    # [B, k, N]
-    x_expand = x.unsqueeze(2).expand(B, C, k, N)
-    idx_expand = idx.unsqueeze(1).expand(B, C, k, N)
-    neighbors = torch.gather(x_expand, 3, idx_expand)  # [B, C, k, N]
-    weight = weight.unsqueeze(1).expand(B, C, k, N)
-    neighbors *= weight
-    neighbors += x_expand
-    return neighbors
 
 def keep_feature3(x, k):
     B, C, N = x.shape
@@ -72,20 +72,6 @@ def get_graph_feature1(x, k):
     num_points = x.size(2)
     x = x.view(batch_size, -1, num_points)
     idx = knn(x, k).to(device)
-    idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
-    idx = idx + idx_base
-    idx = idx.view(-1)
-    x = x.transpose(2, 1).contiguous().to(device)
-    feature = x.view(batch_size * num_points, -1)[idx, :]
-    feature = feature.view(batch_size, num_points, k, num_dims)
-    return feature
-
-def get_feature(x, idx):
-    device = x.device
-    batch_size = x.size(0)
-    num_dims = x.size(1)
-    num_points = x.size(2)
-    k = idx.size(2)
     idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
     idx = idx + idx_base
     idx = idx.view(-1)
@@ -146,43 +132,6 @@ class AddNorm(nn.Module):
     def forward(self, input, x):
         input = self.dropout(input)
         return self.norm(input + x)
-
-# class new_knn(nn.Module):
-#     def __init__(self, in_channel, qkv_channel, k_tmp=50, k=20):
-#         super(new_knn, self).__init__()
-#         self.k_tmp = k_tmp
-#         self.k = k
-#         self.qLinear = nn.Linear(in_channel, qkv_channel)
-#         self.kLinear = nn.Linear(in_channel, qkv_channel)
-#         # self.vLinear = nn.Linear(self.N, self.N)
-#         # self.fc = nn.Linear(in_channel, 1)
-#         # self.dense = nn.Linear(self.N, self.N)
-#         # self.in_channel = in_channel
-#         # self.addnorm1 = AddNorm(self.N)
-#         # self.addnorm2 = AddNorm(self.N)
-#
-#     def forward(self, x):
-#         B, C, N = x.shape  # [B, C, N]
-#
-#         x_transposed = x.transpose(1, 2)  # [B, N, C]
-#
-#         x_with_neighbour = get_graph_feature1(x, self.k_tmp)  # [B, N, k, C]
-#         x_copied = x_with_neighbour
-#         # x_unsqueezed = x.transpose(1, 2).unsqueeze(-2)
-#         # x_with_neighbour -= x_unsqueezed
-#         # x_with_neighbour = x_with_neighbour.permute(0, 2, 3, 1)  # [B, k, C, N]
-#         q = self.qLinear(x_transposed)  # [B, N, C']
-#         k = self.kLinear(x_with_neighbour)  # [B, N, k, C']
-#         scaled_attention_logits = torch.matmul(k, q.unsqueeze(-1))
-#         scaled_attention_logits /= torch.sqrt(torch.tensor(self.k_tmp, dtype=torch.float32))
-#         attention_weights = torch.nn.functional.softmax(scaled_attention_logits, dim=-1)
-#         attention_weights = attention_weights.view(B, N, -1)
-#         _, indices = torch.sort(attention_weights, dim=-1)
-#         indices = indices[:, :, :self.k]  # [B, N, k]
-#         _ = _[:, :, :self.k]
-#         ans = torch.gather(x_copied, dim=-2, index=indices.unsqueeze(-1).expand(-1, -1, -1, C)) # * _.unsqueeze(-1)
-#         return ans.permute(0, 3, 2, 1)   # [B, C, k, N]
-
 
 class new_knn(nn.Module):
     def __init__(self, num_points, in_channel, qkv_channel, k_tmp=50, k=20):
@@ -475,6 +424,26 @@ def keep_feature(x, k):
     x_expand = x.unsqueeze(2).expand(B, C, k, N)
     idx_expand = idx.unsqueeze(1).expand(B, C, k, N)
     neighbors = torch.gather(x_expand, 3, idx_expand)
+    neighbors += x_expand
+    return neighbors
+
+def keep_feature_extension(x, k):
+    B, C, N = x.shape
+    idx = knn_extension(x, k).transpose(1, 2)
+    x_expand = x.unsqueeze(2).expand(B, C, k, N)
+    idx_expand = idx.unsqueeze(1).expand(B, C, k, N)
+    neighbors = torch.gather(x_expand, 3, idx_expand)
+    neighbors += x_expand
+    return neighbors
+
+def keep_feature1(x, k):
+    B, C, N = x.shape
+    idx = knn(x, k).transpose(1, 2)
+    x_expand = x.unsqueeze(2).expand(B, C, k, N)
+    idx_expand = idx.unsqueeze(1).expand(B, C, k, N)
+    neighbors = torch.gather(x_expand, 3, idx_expand)  # [B, C, k, N]
+    radius = torch.norm(neighbors, p=2, dim=1, keepdim=True)
+    neighbors /= (radius + 1e-8)
     neighbors += x_expand
     return neighbors
 

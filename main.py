@@ -2,7 +2,7 @@ import argparse
 import yaml
 from src.pointnet import pointnet_cls, pointnet_seg
 from src.pointnet2 import pointnet2_cls, pointnet2_seg
-from src.DGCNN_with_kmeans import DGCNN_cls, DGCNN_seg
+from src.DGCNN import DGCNN_cls, DGCNN_seg
 from src.ErrorClass import KeyError
 from src.DatasetMaker import ModelNet40, ShapeNet, S3DISFinal
 import numpy as np
@@ -109,10 +109,10 @@ if __name__ == '__main__':
 
     testDataLoader = None
     if config['val'] == 1:
-        testDataLoader = datasetChooser(config['mission'], config['datasetRootDir'], config['batchSize'], 'test')
+        testDataLoader = datasetChooser(config['mission'], config['batchSize'], 'test')
 
     if config['mode'] == 'train':
-        # writer = SummaryWriter(config['summaryLogDir'])
+        writer = SummaryWriter(config['summaryLogDir'])
         if config['loadModelDir'] != '0':
             model.load_state_dict(torch.load(config['loadModelDir']))
         optimizer = optimizerChooser(model, config['optimizer'], config['learningRate'])
@@ -133,25 +133,23 @@ if __name__ == '__main__':
                 loss.backward()
                 optimizer.step()
 
-            # writer.add_scalar('Loss', loss.item(), epoch)
+            writer.add_scalar('Loss', loss.item(), epoch)
             lossArray.append(loss.item())
 
-            allRes = 0
-            allAcc = 0
-            acc = 0
-            with torch.no_grad():
-                for x, y in testDataLoader:
-                    x = x.to(device).transpose(1, 2)
-                    x = x.float()
-                    y = y.to(device)
-                    output = model(x)
-                    result = torch.max(output, dim=1)[1]
-                    allRes += result.shape[0]
-                    allAcc += torch.sum(result == y.long())
-                acc = allAcc * 1.0 / allRes * 1.0
-
-            # if loss.item() < minLoss:
-            #     minLoss = loss.item()
-            #     torch.save(model.state_dict(), '%s/%s_best_loss.pt' % (config['modelSaveDir'], config['model']))
-
-            print(f'Epoch [{epoch + 1}/{config["epochs"]}], Loss: {loss.item():.4f}')
+            if config['val'] == 1:
+                allRes = 0
+                allAcc = 0
+                acc = 0
+                with torch.no_grad():
+                    for x, y in testDataLoader:
+                        x = x.to(device).transpose(1, 2)
+                        x = x.float()
+                        y = y.to(device)
+                        output = model(x)
+                        result = torch.max(output, dim=1)[1]
+                        allRes += result.shape[0]
+                        allAcc += torch.sum(result == y.long())
+                    acc = allAcc * 1.0 / allRes * 1.0
+                    print(f'Epoch [{epoch + 1}/{config["epochs"]}], Loss: {loss.item():.4f}, Acc: {acc:.4f}')
+            else :
+                print(f'Epoch [{epoch + 1}/{config["epochs"]}], Loss: {loss.item():.4f}')

@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from src.utils import keep_feature2
+from src.utils import keep_feature
 
 class DGCNN_cls(nn.Module):
-    def __init__(self, input_channel, output_channel, k=5):
+    def __init__(self, input_channel, output_channel, k=20):
         super(DGCNN_cls, self).__init__()
         self.k = k
         self.bn1 = nn.BatchNorm2d(64)
@@ -58,21 +58,25 @@ class DGCNN_cls(nn.Module):
 
     def forward(self, x): #[B, C, N]
         B, C, N = x.shape
-        x = keep_feature2(x, self.k) # [B, C, k, N]
+        x_copy = x
+        x = keep_feature(x, self.k) # [B, C, k, N]
         x = self.edge_cov1(x)
-        x = torch.max(x, dim=2)[0]
+        x = torch.max(x, dim=2)[0] + x_copy
 
-        x = keep_feature2(x, self.k)
+        x_copy = x
+        x = keep_feature(x, self.k)
         x = self.edge_cov2(x)
-        x1 = torch.max(x, dim=2)[0]
+        x1 = torch.max(x, dim=2)[0] + x_copy
 
-        x = keep_feature2(x1, self.k)
+        x_copy = x
+        x = keep_feature(x1, self.k)
         x = self.edge_cov3(x)
-        x = torch.max(x, dim=2)[0]
+        x = torch.max(x, dim=2)[0] + x_copy
 
-        x = keep_feature2(x, self.k)
+        x_copy = x
+        x = keep_feature(x, self.k)
         x = self.edge_cov4(x)
-        x = torch.max(x, dim=2)[0]
+        x = torch.max(x, dim=2)[0] + x_copy
 
         x = self.edge_cov5(x)
         x = torch.max(x, dim=2)[0]

@@ -3,7 +3,7 @@ import torch.nn as nn
 from src.utils import keep_feature
 
 class DGCNN_cls(nn.Module):
-    def __init__(self, input_channel, output_channel, k=5):
+    def __init__(self, input_channel, output_channel, k=20):
         super(DGCNN_cls, self).__init__()
         self.k = k
         self.bn1 = nn.BatchNorm2d(64)

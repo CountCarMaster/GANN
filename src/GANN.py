@@ -1,7 +1,6 @@
-import numpy as np
 import torch
 import torch.nn as nn
-from src.utils import keep_feature, get_graph_feature1, xyz2sphere, resort_points
+from src.utils import keep_feature3, get_graph_feature1, xyz2sphere, resort_points
 
 class GeometricExtractor(nn.Module):
     def __init__(self):
@@ -20,7 +19,6 @@ class GeometricExtractor(nn.Module):
         )
 
     def forward(self, x, k=9):
-
         B, N, C = x.shape
         device = x.device
         x_expand = torch.unsqueeze(x, -2).to(device)
@@ -58,11 +56,10 @@ class GeometricExtractor(nn.Module):
         feature = torch.max(feature, dim=-2)[0]
         return feature
 
-class DGCNN_cls(nn.Module):
-    def __init__(self, input_channel, output_channel, k=5):
-        super(DGCNN_cls, self).__init__()
+class GANN_cls(nn.Module):
+    def __init__(self, input_channel, output_channel, k=20):
+        super(GANN_cls, self).__init__()
         self.k = k
-
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(64)
@@ -73,10 +70,9 @@ class DGCNN_cls(nn.Module):
         self.bn8 = nn.BatchNorm1d(512)
         self.bn9 = nn.BatchNorm1d(128)
 
-        self.feature_extractor = GeometricExtractor()
+        self.geometric_extractor = GeometricExtractor()
 
         self.edge_cov1 = nn.Sequential(
-            # nn.Conv2d(input_channel, 64, kernel_size=1, bias=False),
             nn.Conv2d(10, 64, kernel_size=1, bias=False),
             self.bn1,
             nn.ReLU()
@@ -118,25 +114,19 @@ class DGCNN_cls(nn.Module):
 
     def forward(self, x): #[B, C, N]
         B, C, N = x.shape
-        x = x.transpose(1, 2)
-        x = self.feature_extractor(x)
-        x = x.transpose(1, 2)
-
-
-
-        x = keep_feature(x, self.k) # [B, C, k, N]
+        x = keep_feature3(x, self.k) # [B, C, k, N]
         x = self.edge_cov1(x)
         x = torch.max(x, dim=2)[0]
 
-        x = keep_feature(x, self.k)
+        x = keep_feature3(x, self.k)
         x = self.edge_cov2(x)
         x1 = torch.max(x, dim=2)[0]
 
-        x = keep_feature(x1, self.k)
+        x = keep_feature3(x1, self.k)
         x = self.edge_cov3(x)
         x = torch.max(x, dim=2)[0]
 
-        x = keep_feature(x, self.k)
+        x = keep_feature3(x, self.k)
         x = self.edge_cov4(x)
         x = torch.max(x, dim=2)[0]
 
@@ -147,90 +137,3 @@ class DGCNN_cls(nn.Module):
         x = self.edge_cov7(x)
         x = self.edge_cov8(x)
         return x
-
-class DGCNN_seg(nn.Module):
-    def __init__(self, input_channel, output_channel, k=5):
-        super(DGCNN_seg, self).__init__()
-        self.k = k
-
-        self.bn1 = nn.BatchNorm2d(64)
-        self.bn2 = nn.BatchNorm2d(64)
-        self.bn3 = nn.BatchNorm2d(64)
-        self.bn4 = nn.BatchNorm2d(64)
-        self.bn5 = nn.BatchNorm1d(1024)
-        self.bn6 = nn.BatchNorm1d(512)
-        self.bn7 = nn.BatchNorm1d(128)
-
-
-        self.edge_cov1 = nn.Sequential(
-            nn.Conv2d(input_channel, 64, kernel_size=1, bias=False),
-            self.bn1,
-            nn.ReLU()
-        )
-        self.edge_cov2 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=1, bias=False),
-            self.bn2,
-            nn.ReLU()
-        )
-        self.edge_cov3 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=1, bias=False),
-            self.bn3,
-            nn.ReLU()
-        )
-        self.edge_cov4 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=1, bias=False),
-            self.bn4,
-            nn.ReLU()
-        )
-        self.edge_cov5 = nn.Sequential(
-            nn.Conv1d(64, 1024, kernel_size=1, bias=False),
-            self.bn5,
-            nn.ReLU()
-        )
-        self.edge_cov6 = nn.Sequential(
-            nn.Conv1d(1088, 512, kernel_size=1, bias=False),
-            self.bn6,
-            nn.ReLU()
-        )
-        self.edge_cov7 = nn.Sequential(
-            nn.Conv1d(512, 128, kernel_size=1, bias=False),
-            self.bn7,
-            nn.ReLU()
-        )
-        self.edge_cov8 = nn.Sequential(
-            nn.Conv1d(128, output_channel, kernel_size=1, bias=False),
-            nn.ReLU()
-        )
-
-    def forward(self, x): #[B, C, N]
-        B, C, N = x.shape
-        x = keep_feature(x, self.k) # [B, C, k, N]
-        x = self.edge_cov1(x)
-        x = torch.max(x, dim=2)[0]
-
-        x = keep_feature(x, self.k)
-        x = self.edge_cov2(x)
-        x1 = torch.max(x, dim=2)[0]
-
-        x = keep_feature(x1, self.k)
-        x = self.edge_cov3(x)
-        x = torch.max(x, dim=2)[0]
-
-        x = keep_feature(x, self.k)
-        x = self.edge_cov4(x)
-        x = torch.max(x, dim=2)[0]
-
-        x = self.edge_cov5(x)
-        x = torch.max(x, dim=2)[0]
-
-        x = torch.cat([x1, x.unsqueeze(-1).repeat(1, 1, N)], dim=1)
-
-        x = self.edge_cov6(x)
-        x = self.edge_cov7(x)
-        x = self.edge_cov8(x)
-        return x
-
-# model = DGCNN_cls(input_channel=3, output_channel=40)
-# data = torch.rand(5, 3, 1000)
-# result = model(data)
-# print(result.shape)
